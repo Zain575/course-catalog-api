@@ -1,18 +1,9 @@
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from data import find_course, get_all_courses
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Depends
 from models import Course
+from data import get_all_courses, find_course
 
 app = FastAPI(title="Course Catalog API")
-
-# Configure CORS for Next.js frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/")
@@ -20,6 +11,7 @@ def read_root():
     return {"message": "Course Catalog API is running"}
 
 
+# Pagination dependency function
 def pagination(page: int = 1, page_size: int = 20):
     offset = (page - 1) * page_size
     return {"offset": offset, "limit": page_size}
@@ -27,20 +19,23 @@ def pagination(page: int = 1, page_size: int = 20):
 
 @app.get("/courses", response_model=list[Course])
 def list_courses(
-    is_elective: bool | None = None,
+    is_elective: Optional[bool] = None,
     sort: str = "popular",
     p: dict = Depends(pagination),
 ):
     courses = get_all_courses()
 
+    # 1. Filtering (must check 'is not None' so False isn't ignored)
     if is_elective is not None:
         courses = [c for c in courses if c.is_elective == is_elective]
 
+    # 2. Sorting
     if sort == "title":
         courses = sorted(courses, key=lambda c: c.title)
     else:
         courses = sorted(courses, key=lambda c: c.likes, reverse=True)
 
+    # 3. Pagination Slicing
     offset = p["offset"]
     limit = p["limit"]
     return courses[offset : offset + limit]
